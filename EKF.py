@@ -1,12 +1,10 @@
-import matplotlib.pyplot as plt
 import numpy as np
-
+import matplotlib.pyplot as plt
 from Renderer import Renderer
 
 
 class EKF(object):
-    """
-    A class for implementing EKFs.
+    """A class for implementing EKFs.
 
     Attributes
     ----------
@@ -46,8 +44,7 @@ class EKF(object):
     """
 
     def __init__(self, mu, Sigma, R, Q, XYT):
-        """
-        Initialize the class.
+        """Initialize the class.
 
         Attributes
         ----------
@@ -70,6 +67,9 @@ class EKF(object):
         self.R = R
         self.Q = Q
         self.XYT = XYT
+        
+        self.N = self.mu.shape[0]
+        self.M = self.Q.shape[0]
 
         # Keep track of mean and variance over time
         self.MU = mu
@@ -78,21 +78,27 @@ class EKF(object):
         xLim = np.array((np.amin(XYT[0, :] - 2), np.amax(XYT[0, :] + 2)))
         yLim = np.array((np.amin(XYT[1, :] - 2), np.amax(XYT[1, :] + 2)))
 
-        self.renderer = Renderer(xLim, yLim, 3, "red", "green")
+        self.renderer = Renderer(xLim, yLim, 3, 'red', 'green')
+        
+        
+        # Noise term : 2 element vector that describes nosie in angular motion
+        self.v_t = np.random.multivariate_normal(np.zeros(self.N), self.R)
+        self.w_t = np.random.multivariate_normal(np.zeros(self.M), self.Q)
 
     def angleWrap(self, theta):
         """Ensure that a given angle is in the interval (-pi, pi)."""
         while theta < -np.pi:
-            theta = theta + 2 * np.pi
+            theta = theta + 2*np.pi
 
         while theta > np.pi:
-            theta = theta - 2 * np.pi
+            theta = theta - 2*np.pi
 
         return theta
 
     def prediction(self, u):
-        """
-        Perform the EKF prediction step based on control u.
+        """Perform the EKF prediction step based on control u.
+        
+        Updates the variables self.mu_bar and self.sigma_bar
 
         Parameters
         ----------
@@ -100,12 +106,28 @@ class EKF(object):
             A 2-element vector that includes the forward distance that the
             robot traveled and its change in orientation.
         """
+        
+        # Redraw noise term s
+        self.v_t = np.random.multivariate_normal(np.zeros(self.N), self.R)
+        self.w_t = np.random.multivariate_normal(np.zeros(self.M), self.Q)
+        
+        
+            
+        
+        # F,G = computeFandG 
+        
+        # mu_bar = f(self.mu, u)
+        # sigma_bar = F @ self.Sigma @ F.T +  G @ R @ G.T
+        
+        
+        
         # Your code goes here
         pass
 
     def update(self, z):
-        """
-        Perform the EKF update step based on observation z.
+        """Perform the EKF update step based on observation z.
+        
+        Updates the variables self.mu and self.Sigma
 
         Parameters
         ----------
@@ -117,8 +139,7 @@ class EKF(object):
         pass
 
     def run(self, U, Z):
-        """
-        Main EKF loop that iterates over control and measurement data.
+        """Main EKF loop that iterates over control and measurement data.
 
         Parameters
         ----------
@@ -130,6 +151,7 @@ class EKF(object):
             at that time step
         """
         for t in range(np.size(U, 1)):
+
             self.prediction(U[:, t])
             self.update(Z[:, t])
 
@@ -142,3 +164,132 @@ class EKF(object):
         self.renderer.plotError(self.MU, self.XYT, self.VAR)
         plt.ioff()
         plt.show()
+        
+    def motionModelFunction(self, x, u):
+        """Function that computes the motion model dynamics
+        
+        Parameters
+        ----------
+        x : numpy.ndarray
+            A 3-element vector [x_t, y_t, theta_t] with (x_t, y_t) describing
+            position and theta_t describing orientation
+        u : numpy.ndarray
+            A 2-element vector [d_t, delta_sigma_t] where d_t represents the
+            body relative forward distance moved and delta_sigma_t represents
+            the change in orientation
+            
+        Returns 
+        ----------
+        out : numpy.ndarray
+            A 3-element vector [x_new, y_new, theta_new] of the position and 
+            orientation 
+        """
+        
+        x_new = x[0] + (u[0] + self.v_t[0]) * np.cos(x[2])
+        y_new = x[1] + (u[0] + self.v_t[0]) * np.sin(x[2])
+        theta_new = x[2] + u[1] + self.v_t[1]
+        
+        out = np.array([x_new, y_new, theta_new])
+        
+        return out
+    
+    def measurementModelFunction(self, x):
+        """Function that computes the motion model dynamics
+        
+        Parameters
+        ----------
+        x : numpy.ndarray
+            A 3-element vector [x_t, y_t, theta_t] with (x_t, y_t) describing
+            position and theta_t describing orientation
+            
+        Returns 
+        ----------
+        out : numpy.ndarray
+            A 2-element vector [x_new, y_new, theta_new] of the position and 
+            orientation 
+            
+        """
+        
+        
+        
+        pass  
+    
+    def F_Jacobian(self, u):
+        """Computes the Jacobian F as partial f/x evaluated at the mean state estimate (mu)
+            given the control
+        
+        Parameters
+        ----------
+        u : numpy.ndarray
+            A 2-element vector [d_t, delta_sigma_t] where d_t represents the
+            body relative forward distance moved and delta_sigma_t represents
+            the change in orientation
+            
+        Returns 
+        ----------
+        out : numpy.ndarray
+            A 3 x 3 array of the Jacobian of motionModelFunction evaluated at 
+            x = self.mu and input u
+        """
+        
+        out = np.array([
+            [1, 0 , -1*(u[0] + self.v_t[0]) * np.sin(self.mu[2])],
+            [0, 1, (u[0] + self.v_t[0]) * np.cos(self.mu[2])],
+            [0, 0, 1]
+        ])
+        
+        return out 
+    
+    def G_Jacobian(self, u):
+        """Computes the Jacobian G as partioal f/v evaluated at the mean state estimate (mu)
+            given the control
+        
+        Parameters
+        ----------
+        u : numpy.ndarray
+            A 2-element vector [d_t, delta_sigma_t] where d_t represents the
+            body relative forward distance moved and delta_sigma_t represents
+            the change in orientation
+            
+        Returns 
+        ----------
+        out : numpy.ndarray
+            A 3 x 2 array of the Jacobian of motionModelFunction evaluated at 
+            x = self.mu and input u
+        """
+        
+        out = np.array([
+            [np.cos(self.mu[2]), 0],
+            [np.sin(self.mu[2]), 0],
+            [0, 1]
+        ])
+        
+        return out 
+    
+    def H_Jacobian(self, u):
+        """Computes the Jacobian G as partioal f/v evaluated at the mean state estimate (mu)
+            given the control
+        
+        Parameters
+        ----------
+        u : numpy.ndarray
+            A 2-element vector [d_t, delta_sigma_t] where d_t represents the
+            body relative forward distance moved and delta_sigma_t represents
+            the change in orientation
+            
+        Returns 
+        ----------
+        out : numpy.ndarray
+            A 2 x 3 array of the Jacobian of motionModelFunction evaluated at 
+            x = self.mu and input u
+        """
+        
+        out = np.array([
+            [np.cos(self.mu[2]), 0],
+            [np.sin(self.mu[2]), 0],
+            [0, 1]
+        ])
+        
+        return out
+    
+    
