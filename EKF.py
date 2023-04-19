@@ -177,8 +177,8 @@ class EKF(object):
         w_r, w_theta = self.measurement_noise()
 
         # Compute the squared distance and angle
-        z_r_hat = (mu_x) ** 2 + (mu_y) ** 2
-        z_theta_hat = self.angleWrap(np.arctan2(mu_y, mu_x) - mu_theta)
+        z_r_hat = (mu_x) ** 2 + (mu_y) ** 2 + w_r
+        z_theta_hat = self.angleWrap(np.arctan2(mu_y, mu_x) + w_theta)
 
         # Compute the Jacobian H
         H = self.H_Jacobian(mu_x, mu_y, z_r_hat)
