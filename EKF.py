@@ -68,8 +68,8 @@ class EKF(object):
         self.Q = Q
         self.XYT = XYT
         
-        self.N = self.mu.shape[0]
-        self.M = self.Q.shape[0]
+        self.N = 2
+        self.M = 2
 
         # Keep track of mean and variance over time
         self.MU = mu
@@ -80,10 +80,18 @@ class EKF(object):
 
         self.renderer = Renderer(xLim, yLim, 3, 'red', 'green')
         
-        
+        print(self.R)
+        print(self.mu)
         # Noise term : 2 element vector that describes nosie in angular motion
-        self.v_t = np.random.multivariate_normal(np.zeros(self.N), self.R)
-        self.w_t = np.random.multivariate_normal(np.zeros(self.M), self.Q)
+        self.v_t = np.random.multivariate_normal(np.zeros(2), self.R)
+        self.w_t = np.random.multivariate_normal(np.zeros(2), self.Q)
+        
+        # Barred terms
+        # np.ndarray - 3 element vector 
+        self.mu_bar = self.mu
+        
+        # np.ndarray - 3 x 3 array
+        self.sigma_bar = self.Sigma
 
     def angleWrap(self, theta):
         """Ensure that a given angle is in the interval (-pi, pi)."""
@@ -107,22 +115,19 @@ class EKF(object):
             robot traveled and its change in orientation.
         """
         
-        # Redraw noise term s
+        # Redraw and update noise terms
         self.v_t = np.random.multivariate_normal(np.zeros(self.N), self.R)
         self.w_t = np.random.multivariate_normal(np.zeros(self.M), self.Q)
         
+        # Compute mu_bar
+        self.mu_bar = self.motionModelFunction(self.mu, u)
         
-            
+        # Compute sigma_bar
+        F_t  = self.F_Jacobian(u)
+        G_t = self.G_Jacobian()
+        self.sigma_bar = (F_t @ self.Sigma @ F_t.T) + (G_t @ self.R @ G_t.T)
         
-        # F,G = computeFandG 
-        
-        # mu_bar = f(self.mu, u)
-        # sigma_bar = F @ self.Sigma @ F.T +  G @ R @ G.T
-        
-        
-        
-        # Your code goes here
-        pass
+        return None
 
     def update(self, z):
         """Perform the EKF update step based on observation z.
@@ -135,8 +140,17 @@ class EKF(object):
             A 2-element vector that includes the squared distance between
             the robot and the sensor, and the robot's heading.
         """
-        # Your code goes here
-        pass
+        H_t = self.H_Jacobian()
+        K_t = self.sigma_bar @ H_t.T @ np.linalg.inv((H_t @ self.sigma_bar @ H_t.T )+ self.Q)
+        
+        error_term = z-self.measurementModelFunction(self.mu_bar)
+        error_term[1] = self.angleWrap(error_term[1])
+        
+        # Update step
+        self.mu = self.mu_bar + (K_t @ error_term)
+        self.Sigma = (np.identity(3) - (K_t @ H_t)) @ self.sigma_bar
+       
+        return None
 
     def run(self, U, Z):
         """Main EKF loop that iterates over control and measurement data.
@@ -205,14 +219,17 @@ class EKF(object):
         Returns 
         ----------
         out : numpy.ndarray
-            A 2-element vector [x_new, y_new, theta_new] of the position and 
+            A 2-element vector [z_r_t, z_theta_t] of the position and 
             orientation 
             
         """
         
+        z_r_t = x[0]**2 + x[1]**2
+        z_theta_t = np.arctan2(x[1], x[0])
         
+        out = np.array([z_r_t, z_theta_t])
         
-        pass  
+        return out  
     
     def F_Jacobian(self, u):
         """Computes the Jacobian F as partial f/x evaluated at the mean state estimate (mu)
@@ -240,7 +257,7 @@ class EKF(object):
         
         return out 
     
-    def G_Jacobian(self, u):
+    def G_Jacobian(self, ):
         """Computes the Jacobian G as partioal f/v evaluated at the mean state estimate (mu)
             given the control
         
@@ -266,8 +283,8 @@ class EKF(object):
         
         return out 
     
-    def H_Jacobian(self, u):
-        """Computes the Jacobian G as partioal f/v evaluated at the mean state estimate (mu)
+    def H_Jacobian(self,):
+        """Computes the Jacobian H as partioal h/x evaluated at the mean state estimate (mu)
             given the control
         
         Parameters
@@ -285,9 +302,8 @@ class EKF(object):
         """
         
         out = np.array([
-            [np.cos(self.mu[2]), 0],
-            [np.sin(self.mu[2]), 0],
-            [0, 1]
+            [2*self.mu[0], 2*self.mu[1], 0],
+            [-1*self.mu[1]/(self.mu[0]**2 + self.mu[1]**2), self.mu[0]/(self.mu[0]**2 + self.mu[1]**2), 0]
         ])
         
         return out
