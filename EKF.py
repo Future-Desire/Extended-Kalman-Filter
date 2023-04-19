@@ -120,11 +120,11 @@ class EKF(object):
         self.w_t = np.random.multivariate_normal(np.zeros(self.M), self.Q)
         
         # Compute mu_bar
-        self.mu_bar = self.motionModelFunction(self.mu, u)
+        self.mu_bar = self._motionModelFunction(self.mu, u)
         
         # Compute sigma_bar
-        F_t  = self.F_Jacobian(u)
-        G_t = self.G_Jacobian()
+        F_t  = self._F_Jacobian(u)
+        G_t = self._G_Jacobian()
         self.sigma_bar = (F_t @ self.Sigma @ F_t.T) + (G_t @ self.R @ G_t.T)
         
         return None
@@ -140,10 +140,10 @@ class EKF(object):
             A 2-element vector that includes the squared distance between
             the robot and the sensor, and the robot's heading.
         """
-        H_t = self.H_Jacobian()
+        H_t = self._H_Jacobian()
         K_t = self.sigma_bar @ H_t.T @ np.linalg.inv((H_t @ self.sigma_bar @ H_t.T )+ self.Q)
         
-        error_term = z-self.measurementModelFunction(self.mu_bar)
+        error_term = z-self._measurementModelFunction(self.mu_bar)
         error_term[1] = self.angleWrap(error_term[1])
         
         # Update step
@@ -179,7 +179,7 @@ class EKF(object):
         plt.ioff()
         plt.show()
         
-    def motionModelFunction(self, x, u):
+    def _motionModelFunction(self, x, u):
         """Function that computes the motion model dynamics
         
         Parameters
@@ -207,7 +207,7 @@ class EKF(object):
         
         return out
     
-    def measurementModelFunction(self, x):
+    def _measurementModelFunction(self, x):
         """Function that computes the motion model dynamics
         
         Parameters
@@ -224,14 +224,14 @@ class EKF(object):
             
         """
         
-        z_r_t = x[0]**2 + x[1]**2
-        z_theta_t = np.arctan2(x[1], x[0])
+        z_r_t = x[0]**2 + x[1]**2 + self.w_t[0]
+        z_theta_t = np.arctan2(x[1], x[0]) + self.w_t[1]
         
         out = np.array([z_r_t, z_theta_t])
         
         return out  
     
-    def F_Jacobian(self, u):
+    def _F_Jacobian(self, u):
         """Computes the Jacobian F as partial f/x evaluated at the mean state estimate (mu)
             given the control
         
@@ -257,7 +257,7 @@ class EKF(object):
         
         return out 
     
-    def G_Jacobian(self, ):
+    def _G_Jacobian(self, ):
         """Computes the Jacobian G as partioal f/v evaluated at the mean state estimate (mu)
             given the control
         
@@ -283,7 +283,7 @@ class EKF(object):
         
         return out 
     
-    def H_Jacobian(self,):
+    def _H_Jacobian(self,):
         """Computes the Jacobian H as partioal h/x evaluated at the mean state estimate (mu)
             given the control
         
