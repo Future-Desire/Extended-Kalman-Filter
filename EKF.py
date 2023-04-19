@@ -1,10 +1,12 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+
 from Renderer import Renderer
 
 
 class EKF(object):
-    """A class for implementing EKFs.
+    """
+    A class for implementing EKFs.
 
     Attributes
     ----------
@@ -44,7 +46,8 @@ class EKF(object):
     """
 
     def __init__(self, mu, Sigma, R, Q, XYT):
-        """Initialize the class.
+        """
+        Initialize the class.
 
         Attributes
         ----------
@@ -75,20 +78,21 @@ class EKF(object):
         xLim = np.array((np.amin(XYT[0, :] - 2), np.amax(XYT[0, :] + 2)))
         yLim = np.array((np.amin(XYT[1, :] - 2), np.amax(XYT[1, :] + 2)))
 
-        self.renderer = Renderer(xLim, yLim, 3, 'red', 'green')
+        self.renderer = Renderer(xLim, yLim, 3, "red", "green")
 
     def angleWrap(self, theta):
         """Ensure that a given angle is in the interval (-pi, pi)."""
         while theta < -np.pi:
-            theta = theta + 2*np.pi
+            theta = theta + 2 * np.pi
 
         while theta > np.pi:
-            theta = theta - 2*np.pi
+            theta = theta - 2 * np.pi
 
         return theta
 
     def prediction(self, u):
-        """Perform the EKF prediction step based on control u.
+        """
+        Perform the EKF prediction step based on control u.
 
         Parameters
         ----------
@@ -100,7 +104,8 @@ class EKF(object):
         pass
 
     def update(self, z):
-        """Perform the EKF update step based on observation z.
+        """
+        Perform the EKF update step based on observation z.
 
         Parameters
         ----------
@@ -112,7 +117,8 @@ class EKF(object):
         pass
 
     def run(self, U, Z):
-        """Main EKF loop that iterates over control and measurement data.
+        """
+        Main EKF loop that iterates over control and measurement data.
 
         Parameters
         ----------
