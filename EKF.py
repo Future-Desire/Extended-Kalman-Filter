@@ -1,3 +1,5 @@
+from pdb import set_trace
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -90,6 +92,45 @@ class EKF(object):
 
         return theta
 
+    def motion_noise(self):
+        """
+        Sample from a Gaussian distribution.
+
+        Returns
+        -------
+        numpy.ndarray
+            A sample from the Gaussian distribution
+        """
+        return np.random.multivariate_normal(mean=np.zeros(2), cov=self.R)
+
+    def measurement_noise(self):
+        """
+        Sample from a Gaussian distribution.
+
+        Returns
+        -------
+        numpy.ndarray
+            A sample from the Gaussian distribution
+        """
+        return np.random.multivariate_normal(mean=np.zeros(2), cov=self.Q)
+
+    def F_Jacobian(self, mu_theta, d_t, v_d):
+        return np.array(
+            [
+                [1, 0, -(d_t + v_d) * np.sin(mu_theta)],
+                [0, 1, (d_t + v_d) * np.cos(mu_theta)],
+                [0, 0, 1],
+            ]
+        )
+
+    def G_Jacobian(self, mu_theta):
+        return np.array([[np.cos(mu_theta), 0], [np.sin(mu_theta), 0], [0, 1]])
+
+    def H_Jacobian(self, mu_x, mu_y, z_r_hat):
+        return np.array(
+            [[2 * (mu_x), 2 * (mu_y), 0], [-(mu_y) / z_r_hat, (mu_x) / z_r_hat, 0]]
+        )
+
     def prediction(self, u):
         """
         Perform the EKF prediction step based on control u.
@@ -100,8 +141,26 @@ class EKF(object):
             A 2-element vector that includes the forward distance that the
             robot traveled and its change in orientation.
         """
-        # Your code goes here
-        pass
+        d_t, delta_theta_t = u
+        mu_x, mu_y, mu_theta = self.mu
+        v_d, v_theta = self.motion_noise()
+
+        # Update the mu
+        mu_x_new = mu_x + (d_t + v_d) * np.cos(mu_theta)
+        mu_y_new = mu_y + (d_t + v_d) * np.sin(mu_theta)
+        mu_theta_new = self.angleWrap(mu_theta + delta_theta_t + v_theta)
+        mu_new = np.array([mu_x_new, mu_y_new, mu_theta_new])
+
+        # Compute the Jacobians F and G
+        F = self.F_Jacobian(mu_theta, d_t, v_d)
+        G = self.G_Jacobian(mu_theta)
+
+        # Update the covariance
+        Sigma_new = F @ self.Sigma @ F.T + G @ self.R @ G.T
+
+        # Update the class attributes
+        self.mu = mu_new
+        self.Sigma = Sigma_new
 
     def update(self, z):
         """
@@ -113,8 +172,31 @@ class EKF(object):
             A 2-element vector that includes the squared distance between
             the robot and the sensor, and the robot's heading.
         """
-        # Your code goes here
-        pass
+        z_r, z_theta = z
+        mu_x, mu_y, mu_theta = self.mu
+        w_r, w_theta = self.measurement_noise()
+
+        # Compute the squared distance and angle
+        z_r_hat = (mu_x) ** 2 + (mu_y) ** 2
+        z_theta_hat = self.angleWrap(np.arctan2(mu_y, mu_x) - mu_theta)
+
+        # Compute the Jacobian H
+        H = self.H_Jacobian(mu_x, mu_y, z_r_hat)
+
+        # Compute Kalman gain
+        K = self.Sigma @ H.T @ np.linalg.inv(H @ self.Sigma @ H.T + self.Q)
+
+        # Update the mean
+        mu_new = self.mu + K @ (
+            np.array([z_r, z_theta]) - np.array([z_r_hat, z_theta_hat])
+        )
+
+        # Update the covariance
+        Sigma_new = (np.eye(3) - K @ H) @ self.Sigma
+
+        # Update the class attributes
+        self.mu = mu_new
+        self.Sigma = Sigma_new
 
     def run(self, U, Z):
         """
