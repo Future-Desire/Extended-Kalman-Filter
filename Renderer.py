@@ -1,9 +1,11 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.patches import Polygon
 
+
 class Renderer(object):
-    """A class that provides rendering utilities to visualize the EKF.
+    """
+    A class that provides rendering utilities to visualize the EKF.
 
     Attributes
     ----------
@@ -34,8 +36,9 @@ class Renderer(object):
         Render the current estimate and ground-truth pose
     """
 
-    def __init__(self, xLim, yLim, numSigma=3, estColor='red', gtColor='green'):
-        """Initialize the class.
+    def __init__(self, xLim, yLim, numSigma=3, estColor="red", gtColor="green"):
+        """
+        Initialize the class.
 
         Attributes
         ----------
@@ -71,7 +74,8 @@ class Renderer(object):
         plt.ion()
 
     def drawEllipse(self, xy, Sigma):
-        """Draw the ellipse corresponding to a given covariance matrix.
+        """
+        Draw the ellipse corresponding to a given covariance matrix.
 
         Attributes
         ----------
@@ -90,21 +94,30 @@ class Renderer(object):
 
         (W, V) = np.linalg.eig(Sigma)
 
-        a = np.arange(0, 2*np.pi, 0.1).T
+        a = np.arange(0, 2 * np.pi, 0.1).T
         b = self.numSigma * np.array((np.cos(a), np.sin(a)))
 
         D = np.sqrt(np.diag(W, 0))
         el = V.dot(D.dot(b))
 
         # Shift the ellipse to be centered at xy
-        el = el + np.array([xy, ] * np.shape(el)[1]).T
+        el = (
+            el
+            + np.array(
+                [
+                    xy,
+                ]
+                * np.shape(el)[1]
+            ).T
+        )
 
         ellipse = Polygon(el.T, ec=self.estColor, fill=False)
 
         return ellipse
 
     def updateEllipse(self, ellipse, xy, Sigma):
-        """Updates the given ellipse based on given covariance matrix.
+        """
+        Updates the given ellipse based on given covariance matrix.
 
         Attributes
         ----------
@@ -125,21 +138,30 @@ class Renderer(object):
 
         (W, V) = np.linalg.eig(Sigma)
 
-        a = np.arange(0, 2*np.pi, 0.1).T
+        a = np.arange(0, 2 * np.pi, 0.1).T
         b = self.numSigma * np.array((np.cos(a), np.sin(a)))
 
         D = np.sqrt(np.diag(W, 0))
         el = V.dot(D.dot(b))
 
         # Shift the ellipse to be centered at xy
-        el = el + np.array([xy, ] * np.shape(el)[1]).T
+        el = (
+            el
+            + np.array(
+                [
+                    xy,
+                ]
+                * np.shape(el)[1]
+            ).T
+        )
 
         ellipse.set_xy(el.T)
 
         return ellipse
 
-    def drawTriangle(self, xy, theta, mycolor='red'):
-        """Create a triangle polygon centered at xy with orientation theta.
+    def drawTriangle(self, xy, theta, mycolor="red"):
+        """
+        Create a triangle polygon centered at xy with orientation theta.
 
         Attributes
         ----------
@@ -161,11 +183,11 @@ class Renderer(object):
 
         length = 0.75
         alpha = np.radians(30)
-        a = length * np.cos(alpha/2)
-        b = length * np.sin(alpha/2)
-        v1 = np.array((a/2, 0))
-        v2 = np.array((-a/2, b))
-        v3 = np.array((-a/2, -b))
+        a = length * np.cos(alpha / 2)
+        b = length * np.sin(alpha / 2)
+        v1 = np.array((a / 2, 0))
+        v2 = np.array((-a / 2, b))
+        v3 = np.array((-a / 2, -b))
 
         v1 = R.dot(v1) + xy
         v2 = R.dot(v2) + xy
@@ -175,7 +197,8 @@ class Renderer(object):
         return triangle
 
     def updateTriangle(self, triangle, xy, theta):
-        """Update the triangle's vertices.
+        """
+        Update the triangle's vertices.
 
         Attributes
         ----------
@@ -197,11 +220,11 @@ class Renderer(object):
 
         length = 0.75
         alpha = np.radians(30)
-        a = length * np.cos(alpha/2)
-        b = length * np.sin(alpha/2)
-        v1 = np.array((a/2, 0))
-        v2 = np.array((-a/2, b))
-        v3 = np.array((-a/2, -b))
+        a = length * np.cos(alpha / 2)
+        b = length * np.sin(alpha / 2)
+        v1 = np.array((a / 2, 0))
+        v2 = np.array((-a / 2, b))
+        v3 = np.array((-a / 2, -b))
 
         v1 = R.dot(v1) + xy
         v2 = R.dot(v2) + xy
@@ -212,7 +235,8 @@ class Renderer(object):
         return triangle
 
     def drawTrajectory(self, XYE, XYGT):
-        """Draw the estimated and ground-truth trajectories.
+        """
+        Draw the estimated and ground-truth trajectories.
 
         Attributes
         ----------
@@ -223,13 +247,12 @@ class Renderer(object):
             A 2 x T array, where each column specifies the ground-truth
             (x, y) position at that point in time.
         """
-        self.ax.plot(XYE[0, :], XYE[1, :], color=self.estColor,
-                     linestyle='dashed')
-        self.ax.plot(XYGT[0, :], XYGT[1, :], color=self.gtColor,
-                     linestyle='dashed')
+        self.ax.plot(XYE[0, :], XYE[1, :], color=self.estColor, linestyle="dashed")
+        self.ax.plot(XYGT[0, :], XYGT[1, :], color=self.gtColor, linestyle="dashed")
 
     def render(self, mu, Sigma, gt):
-        """Render the current pose estimate.
+        """
+        Render the current pose estimate.
 
         Attributes
         ----------
@@ -252,7 +275,6 @@ class Renderer(object):
         else:
             self.updateTriangle(self.gtTriangle, gt[0:2], gt[2])
 
-
         if not self.ellipse:
             self.ellipse = self.drawEllipse(mu[0:2], Sigma)
             self.ax.add_patch(self.ellipse)
@@ -263,18 +285,19 @@ class Renderer(object):
 
     def angleWrap(self, theta):
         """Ensure that a given angle is in the interval (-pi, pi)."""
-        with np.nditer(theta, op_flags=['readwrite']) as it:
+        with np.nditer(theta, op_flags=["readwrite"]) as it:
             for x in it:
                 while x < -np.pi:
-                    x = x + 2*np.pi
+                    x = x + 2 * np.pi
 
                 while x > np.pi:
-                    x = x - 2*np.pi
+                    x = x - 2 * np.pi
 
         return theta
 
     def plotError(self, XYE, XYGT, Variance, numSigma=3):
-        """Plot the estimation error and standard deviations
+        """
+        Plot the estimation error and standard deviations.
 
         Attributes
         ----------
@@ -296,16 +319,16 @@ class Renderer(object):
 
         fig, axs = plt.subplots(3)
         axs[0].plot(Error[0, :])
-        axs[0].plot(-numSigma * np.sqrt(Variance[0, :]), 'r--')
-        axs[0].plot(numSigma * np.sqrt(Variance[0, :]), 'r--')
-        axs[0].set(xlabel='Time', ylabel='X Error')
+        axs[0].plot(-numSigma * np.sqrt(Variance[0, :]), "r--")
+        axs[0].plot(numSigma * np.sqrt(Variance[0, :]), "r--")
+        axs[0].set(xlabel="Time", ylabel="X Error")
 
         axs[1].plot(Error[1, :])
-        axs[1].plot(-numSigma * np.sqrt(Variance[1, :]), 'r--')
-        axs[1].plot(numSigma * np.sqrt(Variance[1, :]), 'r--')
-        axs[1].set(xlabel='Time', ylabel='Y Error')
+        axs[1].plot(-numSigma * np.sqrt(Variance[1, :]), "r--")
+        axs[1].plot(numSigma * np.sqrt(Variance[1, :]), "r--")
+        axs[1].set(xlabel="Time", ylabel="Y Error")
 
-        axs[2].plot(Error[2, :] * 180/np.pi)
-        axs[2].plot(-numSigma * np.sqrt(Variance[2, :]) * 180/np.pi, 'r--')
-        axs[2].plot(numSigma * np.sqrt(Variance[2, :]) * 180/np.pi, 'r--')
-        axs[2].set(xlabel='Time', ylabel='Theta Error (Degrees)')
+        axs[2].plot(Error[2, :] * 180 / np.pi)
+        axs[2].plot(-numSigma * np.sqrt(Variance[2, :]) * 180 / np.pi, "r--")
+        axs[2].plot(numSigma * np.sqrt(Variance[2, :]) * 180 / np.pi, "r--")
+        axs[2].set(xlabel="Time", ylabel="Theta Error (Degrees)")
