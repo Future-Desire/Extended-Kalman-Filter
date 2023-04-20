@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from Renderer import Renderer
 
+np.random.seed(333)
+
 
 class EKF(object):
     """A class for implementing EKFs.
@@ -141,7 +143,7 @@ class EKF(object):
             the robot and the sensor, and the robot's heading.
         """
         H_t = self._H_Jacobian()
-        K_t = self.sigma_bar @ H_t.T @ np.linalg.inv((H_t @ self.sigma_bar @ H_t.T )+ self.Q)
+        K_t = self.sigma_bar @ H_t.T @ np.linalg.inv((H_t @ self.sigma_bar @ H_t.T) + self.Q)
         
         error_term = z-self._measurementModelFunction(self.mu_bar)
         error_term[1] = self.angleWrap(error_term[1])
@@ -172,7 +174,7 @@ class EKF(object):
             self.MU = np.column_stack((self.MU, self.mu))
             self.VAR = np.column_stack((self.VAR, np.diag(self.Sigma)))
 
-            self.renderer.render(self.mu, self.Sigma, self.XYT[:, t])
+            # self.renderer.render(self.mu, self.Sigma, self.XYT[:, t])
 
         self.renderer.drawTrajectory(self.MU[0:2, :], self.XYT[0:2, :])
         self.renderer.plotError(self.MU, self.XYT, self.VAR)
