@@ -144,6 +144,12 @@ class EKF(object):
 
         return theta
 
+    def _update_part_c(self, mu_bar, sigma_bar, z):
+        """Update function for part C of assignment."""
+        self.mu = mu_bar
+        self.Sigma = sigma_bar
+        return None
+
     def prediction(self, u):
         """
         Perform the EKF prediction step based on control u.
@@ -208,14 +214,7 @@ class EKF(object):
 
         return None
 
-    def update_part_c(self, mu_bar, sigma_bar, z):
-        """Update function for part C of assignment."""
-        self.mu = mu_bar
-        self.Sigma = sigma_bar
-
-        return None
-
-    def run(self, U, Z, seed=42, show_animation=False):
+    def run(self, U, Z, seed=42, show_animation=False, part_c=False):
         """
         Main EKF loop that iterates over control and measurement data.
 
@@ -231,13 +230,18 @@ class EKF(object):
             The random seed to use for reproducibility
         show_animation : bool
             Whether or not to show the animation of the EKF
+        part_c : bool
+            Which update function to use (part C of assignment)
         """
         seed_everything(seed=seed)
 
         for t in range(np.size(U, 1)):
             mu_bar, sigma_bar = self.prediction(U[:, t])
-            # self.update(mu_bar, sigma_bar, Z[:, t])
-            self.update_part_c(mu_bar, sigma_bar, Z[:, t])
+            if not part_c:
+                self.update(mu_bar, sigma_bar, Z[:, t])
+            else:
+                self._update_part_c(mu_bar, sigma_bar, Z[:, t])
+
             self.MU = np.column_stack((self.MU, self.mu))
             self.VAR = np.column_stack((self.VAR, np.diag(self.Sigma)))
 
