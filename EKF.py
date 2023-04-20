@@ -151,6 +151,7 @@ class EKF(object):
         # Update step
         self.mu = self.mu_bar + (K_t @ error_term)
         self.Sigma = (np.identity(3) - (K_t @ H_t)) @ self.sigma_bar
+        
        
         return None
 
