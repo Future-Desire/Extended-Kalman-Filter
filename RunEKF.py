@@ -5,11 +5,9 @@ import numpy as np
 from EKF import EKF
 
 
-# Read in the control and measurement data from their respective text files
-# and populates self.U and self.Z
 def readData(filenameU, filenameZ, filenameXYT):
     """
-    Read in motion, measurement, and ground-truth data.
+    Read in motion, measurement, and ground-truth data from their respective text files and populates self.U and self.Z.
 
     Attributes
     ----------
@@ -44,11 +42,11 @@ if __name__ == "__main__":
     #    sys.argv[1]: Comma-delimited file of control data (U.txt)
     #    sys.argv[2]: Comma-delimited file of measurement data (Z.txt)
     #    sys.argv[3]: Comma-delimited file of ground-truth poses (XYT.txt)
+    # E.g. python3 RunEKF.py data/U.txt data/Z.txt data/XYT.txt
 
     if len(sys.argv) != 4:
         print(
-            "usage: RunEKF.py ControlData.txt MeasurementData.txt \
-              GroundTruthData.txt"
+            "usage: RunEKF.py ControlData.txt MeasurementData.txt GroundTruthData.txt"
         )
         sys.exit(0)
 
@@ -63,12 +61,10 @@ if __name__ == "__main__":
     # You can try playing with the initial mean, but if you set it to
     # something different from the ground-truth initial pose, make sure
     # that you update the initial covariance matrix accordingly.
-
     mu = XYT[:, 0]
 
     # Initialize the covariance to a zero matrix if we know the initial pose
     # Update this if you change the initial mean.
-
     Sigma = np.zeros((3, 3))
 
     ekf = EKF(mu, Sigma, R, Q, XYT)
