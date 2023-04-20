@@ -1,9 +1,19 @@
-from pdb import set_trace
+import os
+import random
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from Renderer import Renderer
+
+
+def seed_everything(seed=42):
+    """Set the seed for all random number generators."""
+    random.seed(seed)
+    np.random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    return None
 
 
 class EKF(object):
@@ -67,73 +77,78 @@ class EKF(object):
             An N x T array of ground-truth poses, where each column corresponds
             to the ground-truth pose at that time step.
         """
+
         self.mu = mu
         self.Sigma = Sigma
         self.R = R
         self.Q = Q
         self.XYT = XYT
 
+        # Initialize dimension variables
+        self.dim_N = 2
+        self.dim_M = 2
+
         # Keep track of mean and variance over time
         self.MU = mu
         self.VAR = np.diag(self.Sigma).reshape(3, 1)
 
+        # Initialize renderer
         xLim = np.array((np.amin(XYT[0, :] - 2), np.amax(XYT[0, :] + 2)))
         yLim = np.array((np.amin(XYT[1, :] - 2), np.amax(XYT[1, :] + 2)))
-
         self.renderer = Renderer(xLim, yLim, 3, "red", "green")
 
-    def angleWrap(self, theta):
+    def _motion_model(self, x, u, v_t, add_noise=True):
+        """Computes the motion model f(x) given the mean state estimate (mu) and the motion noise v_t."""
+        x_t = x[0] + (u[0] + int(add_noise) * v_t[0]) * np.cos(x[2])
+        y_t = x[1] + (u[0] + int(add_noise) * v_t[0]) * np.sin(x[2])
+        theta_t = x[2] + u[1] + int(add_noise) * v_t[1]
+
+        return np.array([x_t, y_t, theta_t])
+
+    def _measurement_model(self, x, w_t, add_noise=True):
+        """Computes the measurement model h(x) given the mean state estimate (mu) and the measurement noise w_t."""
+        z_r_t = x[0] ** 2 + x[1] ** 2 + int(add_noise) * w_t[0]
+        z_theta_t = np.arctan2(x[1], x[0]) + int(add_noise) * w_t[1]
+
+        return np.array([z_r_t, z_theta_t])
+
+    def _F_jacobian(self, u, v_t):
+        """Computes the Jacobian F as partial f/x evaluated at the mean state estimate (mu) given the control and motion noise v_t."""
+        row_1 = ([1, 0, -1 * (u[0] + v_t[0]) * np.sin(self.mu[2])],)
+        row_2 = ([0, 1, (u[0] + v_t[0]) * np.cos(self.mu[2])],)
+        row_3 = ([0, 0, 1],)
+        return np.vstack([row_1, row_2, row_3])
+
+    def _G_jacobian(self):
+        """Computes the Jacobian G as partioal f/v evaluated at the mean state estimate (mu)."""
+        row_1 = [np.cos(self.mu[2]), 0]
+        row_2 = [np.sin(self.mu[2]), 0]
+        row_3 = [0, 1]
+        return np.vstack([row_1, row_2, row_3])
+
+    def _H_jacobian(self):
+        """Computes the Jacobian H as partioal h/x evaluated at the mean state estimate (mu)."""
+        z_t = self.mu[0] ** 2 + self.mu[1] ** 2
+
+        row_1 = [2 * self.mu[0], 2 * self.mu[1], 0]
+        row_2 = [-1 * self.mu[1] / z_t, self.mu[0] / z_t, 0]
+        return np.vstack([row_1, row_2])
+
+    def _angle_wrap(self, theta):
         """Ensure that a given angle is in the interval (-pi, pi)."""
         while theta < -np.pi:
-            theta = theta + 2 * np.pi
+            theta += 2 * np.pi
 
         while theta > np.pi:
-            theta = theta - 2 * np.pi
+            theta -= 2 * np.pi
 
         return theta
-
-    def motion_noise(self):
-        """
-        Sample from a Gaussian distribution.
-
-        Returns
-        -------
-        numpy.ndarray
-            A sample from the Gaussian distribution
-        """
-        return np.random.multivariate_normal(mean=np.zeros(2), cov=self.R)
-
-    def measurement_noise(self):
-        """
-        Sample from a Gaussian distribution.
-
-        Returns
-        -------
-        numpy.ndarray
-            A sample from the Gaussian distribution
-        """
-        return np.random.multivariate_normal(mean=np.zeros(2), cov=self.Q)
-
-    def F_Jacobian(self, mu_theta, d_t, v_d):
-        return np.array(
-            [
-                [1, 0, -(d_t + v_d) * np.sin(mu_theta)],
-                [0, 1, (d_t + v_d) * np.cos(mu_theta)],
-                [0, 0, 1],
-            ]
-        )
-
-    def G_Jacobian(self, mu_theta):
-        return np.array([[np.cos(mu_theta), 0], [np.sin(mu_theta), 0], [0, 1]])
-
-    def H_Jacobian(self, mu_x, mu_y, z_r_hat):
-        return np.array(
-            [[2 * (mu_x), 2 * (mu_y), 0], [-(mu_y) / z_r_hat, (mu_x) / z_r_hat, 0]]
-        )
 
     def prediction(self, u):
         """
         Perform the EKF prediction step based on control u.
+
+        Updates the variables self.mu_bar and self.sigma_bar
 
         Parameters
         ----------
@@ -141,64 +156,66 @@ class EKF(object):
             A 2-element vector that includes the forward distance that the
             robot traveled and its change in orientation.
         """
-        d_t, delta_theta_t = u
-        mu_x, mu_y, mu_theta = self.mu
-        v_d, v_theta = self.motion_noise()
 
-        # Update the mu
-        mu_x_new = mu_x + (d_t + v_d) * np.cos(mu_theta)
-        mu_y_new = mu_y + (d_t + v_d) * np.sin(mu_theta)
-        mu_theta_new = self.angleWrap(mu_theta + delta_theta_t + v_theta)
-        mu_new = np.array([mu_x_new, mu_y_new, mu_theta_new])
+        # Sample motion noise
+        v_t = np.random.multivariate_normal(np.zeros(self.dim_N), self.R)
 
-        # Compute the Jacobians F and G
-        F = self.F_Jacobian(mu_theta, d_t, v_d)
-        G = self.G_Jacobian(mu_theta)
+        # Compute Jacobians
+        F_t = self._F_jacobian(u, v_t)
+        G_t = self._G_jacobian()
 
-        # Update the covariance
-        Sigma_new = F @ self.Sigma @ F.T + G @ self.R @ G.T
+        # Compute mu_bar and sigma_bar
+        mu_bar = self._motion_model(self.mu, u, v_t)
+        sigma_bar = (F_t @ self.Sigma @ F_t.T) + (G_t @ self.R @ G_t.T)
 
-        # Update the class attributes
-        self.mu = mu_new
-        self.Sigma = Sigma_new
+        return mu_bar, sigma_bar
 
-    def update(self, z):
+    def update(self, mu_bar, sigma_bar, z):
         """
         Perform the EKF update step based on observation z.
 
+        Updates the variables self.mu and self.Sigma
+
         Parameters
         ----------
+        mu_bar : numpy.ndarray
+            The predicted mean vector
+
+        sigma_bar : numpy.ndarray
+            The predicted covariance matrix
+
         z : numpy.ndarray
-            A 2-element vector that includes the squared distance between
-            the robot and the sensor, and the robot's heading.
+            A 2-element vector that includes the range and bearing to the
+            landmark.
         """
-        z_r, z_theta = z
-        mu_x, mu_y, mu_theta = self.mu
-        w_r, w_theta = self.measurement_noise()
 
-        # Compute the squared distance and angle
-        z_r_hat = (mu_x) ** 2 + (mu_y) ** 2 + w_r
-        z_theta_hat = self.angleWrap(np.arctan2(mu_y, mu_x) + w_theta)
+        # Sample measurement noise
+        w_t = np.random.multivariate_normal(np.zeros(self.dim_M), self.Q)
 
-        # Compute the Jacobian H
-        H = self.H_Jacobian(mu_x, mu_y, z_r_hat)
+        # Compute Jacobian
+        H_t = self._H_jacobian()
 
         # Compute Kalman gain
-        K = self.Sigma @ H.T @ np.linalg.inv(H @ self.Sigma @ H.T + self.Q)
+        K_t = sigma_bar @ H_t.T @ np.linalg.inv((H_t @ sigma_bar @ H_t.T) + self.Q)
 
-        # Update the mean
-        mu_new = self.mu + K @ (
-            np.array([z_r, z_theta]) - np.array([z_r_hat, z_theta_hat])
-        )
+        # Compute error term
+        error = z - self._measurement_model(mu_bar, w_t)
+        error[1] = self._angle_wrap(error[1])  # Wrap angle for theta error
 
-        # Update the covariance
-        Sigma_new = (np.eye(3) - K @ H) @ self.Sigma
+        # Update mu and sigma
+        self.mu = mu_bar + (K_t @ error)
+        self.Sigma = (np.identity(3) - (K_t @ H_t)) @ sigma_bar
 
-        # Update the class attributes
-        self.mu = mu_new
-        self.Sigma = Sigma_new
+        return None
 
-    def run(self, U, Z):
+    def update_part_c(self, mu_bar, sigma_bar, z):
+        """Update function for part C of assignment."""
+        self.mu = mu_bar
+        self.Sigma = sigma_bar
+
+        return None
+
+    def run(self, U, Z, seed=42, show_animation=False):
         """
         Main EKF loop that iterates over control and measurement data.
 
@@ -210,17 +227,25 @@ class EKF(object):
         Z : numpy.ndarray
             A 2 x T array, where each column provides the measurement
             at that time step
+        seed : int
+            The random seed to use for reproducibility
+        show_animation : bool
+            Whether or not to show the animation of the EKF
         """
-        for t in range(np.size(U, 1)):
-            self.prediction(U[:, t])
-            self.update(Z[:, t])
+        seed_everything(seed=seed)
 
+        for t in range(np.size(U, 1)):
+            mu_bar, sigma_bar = self.prediction(U[:, t])
+            # self.update(mu_bar, sigma_bar, Z[:, t])
+            self.update_part_c(mu_bar, sigma_bar, Z[:, t])
             self.MU = np.column_stack((self.MU, self.mu))
             self.VAR = np.column_stack((self.VAR, np.diag(self.Sigma)))
 
-            self.renderer.render(self.mu, self.Sigma, self.XYT[:, t])
+            if show_animation:
+                self.renderer.render(self.mu, self.Sigma, self.XYT[:, t])
 
         self.renderer.drawTrajectory(self.MU[0:2, :], self.XYT[0:2, :])
         self.renderer.plotError(self.MU, self.XYT, self.VAR)
+
         plt.ioff()
         plt.show()
